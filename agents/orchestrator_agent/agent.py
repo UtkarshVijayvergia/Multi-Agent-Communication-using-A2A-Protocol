@@ -21,6 +21,8 @@ from a2a.types import (
     SendMessageSuccessResponse
 )
 
+from ..utils.communication_tracker import tracker
+
 
 class OrchestratorAgent:
     """Orchestrator Agent using ADK framework."""
@@ -60,6 +62,17 @@ Always provide structured, insightful responses that add value beyond the raw re
     async def message_research_agent(self, message: str, tool_context: ToolContext):
         """Call the research agent via A2A."""
         task_updater = self._get_task_updater(tool_context)
+        session_id = tool_context._invocation_context.session.id
+        
+        # Track outgoing request to research agent
+        tracker.log_event(
+            event_type="a2a_request",
+            source_agent="orchestrator_agent",
+            target_agent="research_agent",
+            context_id=session_id,
+            content=f"Requesting research: {message}",
+            metadata={"endpoint": self.research_agent_endpoint, "method": "message/send"}
+        )
         
         # Update status
         task_updater.update_status(
@@ -70,18 +83,41 @@ Always provide structured, insightful responses that add value beyond the raw re
         )
         
         # Prepare A2A request
+        message_id = str(uuid4())
         request = SendMessageRequest(
             params=MessageSendParams(
                 message=Message(
-                    contextId=tool_context._invocation_context.session.id,
-                    messageId=str(uuid4()),
+                    contextId=session_id,
+                    messageId=message_id,
                     role=Role.user,
                     parts=[Part(TextPart(text=message))],
                 )
             )
         )
         
+        # Track request details
+        tracker.log_event(
+            event_type="a2a_request_details",
+            source_agent="orchestrator_agent",
+            target_agent="research_agent",
+            message_id=message_id,
+            context_id=session_id,
+            content=message,
+            metadata={"request_type": "SendMessageRequest"}
+        )
+        
         response = await self._send_agent_message(request)
+        
+        # Track response received
+        tracker.log_event(
+            event_type="a2a_response",
+            source_agent="research_agent",
+            target_agent="orchestrator_agent",
+            message_id=message_id,
+            context_id=session_id,
+            content="Response received from research agent",
+            metadata={"response_type": type(response.root).__name__}
+        )
         
         # Extract research content
         content = []
@@ -97,6 +133,15 @@ Always provide structured, insightful responses that add value beyond the raw re
                 content.extend(get_text_parts(response.root.result.parts))
         
         research_text = '\n'.join(content)
+        
+        # Track content extraction
+        tracker.log_event(
+            event_type="content_extraction",
+            source_agent="orchestrator_agent",
+            context_id=session_id,
+            content=f"Extracted {len(content)} text parts, total length: {len(research_text)}",
+            metadata={"extracted_parts": len(content), "total_length": len(research_text)}
+        )
         
         # Update status
         task_updater.update_status(

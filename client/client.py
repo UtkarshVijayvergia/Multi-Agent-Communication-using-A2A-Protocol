@@ -1,7 +1,16 @@
+import sys
+import os
 import httpx
 import json
 import asyncio
 from uuid import uuid4
+
+# Add the project root to Python path
+project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, project_root)
+
+from visualization.dashboard import CommunicationDashboard
+from agents.utils.communication_tracker import tracker
 
 async def call_orchestrator_real_time_streaming(question: str):
     """Call orchestrator with real-time streaming that shows words as they appear."""
@@ -280,13 +289,36 @@ async def call_orchestrator_streaming(question: str):
             import traceback
             traceback.print_exc()
 
+async def call_orchestrator_with_visualization(question: str):
+    """Call orchestrator with real-time communication visualization."""
+    
+    # Clear shared file at start for clean run
+    tracker.clear_shared_file()
+    
+    # Start dashboard in background
+    dashboard = CommunicationDashboard(update_interval=0.5)
+    dashboard_task = asyncio.create_task(dashboard.start_monitoring())
+    
+    try:
+        # Your existing call_orchestrator_real_time_streaming logic here
+        await call_orchestrator_real_time_streaming(question)
+        
+        # Export visualization data after completion
+        print("\n" + "="*80)
+        print("📊 EXPORTING COMMUNICATION VISUALIZATION")
+        print("="*80)
+        
+        viz_file = dashboard.export_visualization_data()
+        comm_file = tracker.export_to_json()
+        
+        print(f"📋 Communication log: {comm_file}")
+        print(f"🎨 Visualization data: {viz_file}")
+        
+    finally:
+        dashboard_task.cancel()
+
 if __name__ == "__main__":
     question = "What is your name? What are the adverse effects of eating tomatoes? What is the current time in New York City?"
     
-    print("🚀 Testing REAL-TIME streaming (word by word)...")
-    try:
-        asyncio.run(call_orchestrator_real_time_streaming(question))
-    except Exception as e:
-        print(f"❌ Real-time streaming failed: {e}")
-        print("\n📞 Falling back to batch mode...")
-        asyncio.run(call_orchestrator_streaming(question))
+    print("🚀 Testing with COMMUNICATION VISUALIZATION...")
+    asyncio.run(call_orchestrator_with_visualization(question))

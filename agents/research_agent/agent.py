@@ -7,6 +7,8 @@ from google.adk.sessions import InMemorySessionService
 from google.adk.tools import ToolContext
 from a2a.types import Part, TextPart, TaskState
 
+from ..utils.communication_tracker import tracker
+
 
 class ResearchAgent:
     """Research Agent using ADK framework."""
@@ -45,12 +47,30 @@ Always structure your response clearly and provide actionable insights.
         # Get TaskUpdater from context
         task_updater = self._get_task_updater(tool_context)
         
+        # Track tool call start
+        tracker.log_event(
+            event_type="tool_call_start",
+            source_agent="research_agent",
+            context_id=tool_context._invocation_context.session.id,
+            content=f"Starting research on topic: {topic}",
+            metadata={"tool": "conduct_research", "topic": topic}
+        )
+        
         # Update status to show we're researching
         task_updater.update_status(
             TaskState.working,
             message=task_updater.new_agent_message([
                 Part(TextPart(text=f"🔍 Researching topic: {topic}"))
             ])
+        )
+        
+        # Track status update
+        tracker.log_event(
+            event_type="status_update",
+            source_agent="research_agent",
+            context_id=tool_context._invocation_context.session.id,
+            content=f"Status: Researching {topic}",
+            metadata={"state": "working"}
         )
         
         # Simulate research process
@@ -70,6 +90,15 @@ Always structure your response clearly and provide actionable insights.
             f"- Dr. Smith recommends focusing on scalability aspects\n"
             f"- Recent Stanford study suggests promising future applications\n"
             f"- Industry report indicates 15% market growth expected"
+        )
+        
+        # Track tool call completion
+        tracker.log_event(
+            event_type="tool_call_complete",
+            source_agent="research_agent",
+            context_id=tool_context._invocation_context.session.id,
+            content=f"Research completed for: {topic}",
+            metadata={"tool": "conduct_research", "result_length": len(research_result)}
         )
         
         return {"result": research_result}
