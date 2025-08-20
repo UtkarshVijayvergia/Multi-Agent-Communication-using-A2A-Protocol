@@ -1,2 +1,2 @@
-# Multi-Agent-Consensus-Driven-Medical-Diagnosis-System
-Multi-Agent Consensus-Driven Medical Diagnosis System
+# Multi-Agent-Communication-using-A2A-Protocol
+Multi-Agent-Communication-using-A2A-Protocol
